@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.pdf
+ats_analysis_results.json
+example_results.json
+
+# Ignore test data but not requirements.txt
+resume&job_description/
+
+# Large data files
+data/skills_exploded*.csv
+*.pkl
+hiring_platform.db
+
+# Streamlit
+.streamlit/
+
+# Temporary files
+*.tmp
+*.log
+
+# Test and debug scripts
+add_test_application.py
+analyze_skills_dataset.py
+check_applications.py
+debug_gemini_block.py
+diagnose_tfidf.py
+display_resume_skills.py
+example_llm_extraction.py
+example_rag_usage.py
+list_gemini_models.py
+test_*.py
