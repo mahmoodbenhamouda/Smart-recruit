@@ -1,0 +1,76 @@
+################################
+# PYTHON
+################################
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+coverage/
+htmlcov/
+
+################################
+# DATA / MODELS
+################################
+*.csv
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.onnx
+data/
+datasets/
+models/
+checkpoints/
+output/
+
+################################
+# NODE / REACT
+################################
+node_modules/
+.next/
+dist/
+build/
+.cache/
+coverage/
+*.tsbuildinfo
+
+################################
+# ENV FILES
+################################
+.env
+.env.*
+!.env.example
+
+################################
+# OS
+################################
+.DS_Store
+Thumbs.db
+
+################################
+# IDE
+################################
+.vscode/
+.idea/
+
+################################
+# Docker
+################################
+*.tar
+*.gz
+
+################################
+# Logs
+################################
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

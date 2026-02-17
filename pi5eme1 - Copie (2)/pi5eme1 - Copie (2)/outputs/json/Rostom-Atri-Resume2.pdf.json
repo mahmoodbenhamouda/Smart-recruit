@@ -1,0 +1,17 @@
+{
+  "filename": "Rostom-Atri-Resume2.pdf",
+  "sections": [
+    {
+      "SUMMARY": "high-impact",
+      "EXPERIENCE": "Axe Built and",
+      "PROJECTS": "Developed behavioral",
+      "EDUCATION": "hybrid to 09/2023",
+      "SKILLS": "+",
+      "CONTACT": "E-commerce"
+    }
+  ],
+  "skills_ner": [
+    "emotion",
+    "LangChain"
+  ]
+}

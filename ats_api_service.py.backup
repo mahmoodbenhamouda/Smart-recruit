@@ -1,0 +1,635 @@
+"""
+FastAPI wrapper for unified ATS pipeline with XAI
+Provides REST API endpoint for Node.js server
+"""
+
+import os
+import sys
+import json
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uvicorn
+
+# LayoutLMv3 imports for section extraction
+try:
+    from PIL import Image
+    import torch
+    import pytesseract
+    from pdf2image import convert_from_path
+    from transformers import LayoutLMv3Processor, LayoutLMv3ForTokenClassification
+    from pytesseract import Output
+    LAYOUTLM_AVAILABLE = True
+    print("✅ LayoutLMv3 dependencies loaded")
+except ImportError as e:
+    LAYOUTLM_AVAILABLE = False
+    print(f"⚠️ LayoutLMv3 not available: {e}")
+
+# Add paths for imports
+sys.path.insert(0, str(Path(__file__).parent / "ATS-agent" / "ATS-agent"))
+sys.path.insert(0, str(Path(__file__).parent / "deep_Learning_Project"))
+
+# Import pipeline components
+from xai_explainer import XAIExplainer
+
+# Import similarity calculator
+try:
+    # Try importing from ATS-agent subdirectory
+    sys.path.insert(0, str(Path(__file__).parent / "ATS-agent" / "ATS-agent"))
+    from similarity_calculator import SimilarityCalculator
+    
+    # Create instance
+    similarity_calc = SimilarityCalculator()
+    
+    def calculate_similarity_score(cv_text, job_description):
+        """Calculate similarity using the SimilarityCalculator class"""
+        try:
+            # Extract keywords (simple version)
+            resume_keywords = [word.lower() for word in cv_text.split() if len(word) > 3]
+            job_keywords = [word.lower() for word in job_description.split() if len(word) > 3]
+            
+            # Get keyword overlap
+            overlap = similarity_calc.keyword_overlap_score(resume_keywords, job_keywords)
+            
+            # Get cosine similarity
+            cosine_score = similarity_calc.cosine_similarity_score(cv_text, job_description)
+            
+            # Calculate overall score (weighted average)
+            overall = (overlap['match_rate'] * 0.5 + cosine_score * 0.5) * 100
+            
+            # Determine match level
+            if overall >= 75:
+                match_level = "Excellent"
+            elif overall >= 60:
+                match_level = "Good"
+            elif overall >= 40:
+                match_level = "Medium"
+            else:
+                match_level = "Low"
+            
+            return {
+                "overall_percentage": round(overall, 2),
+                "match_level": match_level,
+                "detailed_scores": {
+                    "cosine_similarity": round(cosine_score * 100, 2),
+                    "keyword_match_rate": round(overlap['match_rate'] * 100, 2),
+                    "jaccard_similarity": round(overlap['jaccard_similarity'] * 100, 2),
+                    "skills_match_rate": round(overlap['coverage_percentage'], 2)
+                },
+                "matched_skills": overlap['matched_keywords'][:50],
+                "missing_skills": list(set(job_keywords) - set(resume_keywords))[:50]
+            }
+        except Exception as e:
+            print(f"Similarity calculation error: {e}")
+            return {
+                "overall_percentage": 0.0,
+                "match_level": "Error",
+                "detailed_scores": {},
+                "matched_skills": [],
+                "missing_skills": []
+            }
+    
+    print("✅ Loaded SimilarityCalculator from ATS-agent")
+    
+except ImportError as e:
+    print(f"⚠️ Could not import SimilarityCalculator: {e}")
+    # Define a simple fallback similarity calculator
+    def calculate_similarity_score(cv_text, job_description):
+        # Simple word matching fallback
+        resume_words = set(word.lower() for word in cv_text.split() if len(word) > 3)
+        job_words = set(word.lower() for word in job_description.split() if len(word) > 3)
+        matched = resume_words.intersection(job_words)
+        match_rate = len(matched) / len(job_words) if job_words else 0
+        
+        return {
+            "overall_percentage": round(match_rate * 100, 2),
+            "match_level": "Good" if match_rate > 0.6 else "Medium" if match_rate > 0.4 else "Low",
+            "detailed_scores": {"skills_match_rate": round(match_rate * 100, 2)},
+            "matched_skills": list(matched)[:20],
+            "missing_skills": list(set(job_keywords) - set(resume_keywords))[:20]
+        }
+
+# ==============================
+# SECTION EXTRACTION (Regex-based fallback)
+# ==============================
+# ============================================================================
+# Section Extraction Functions
+# ============================================================================
+
+def extract_words_and_boxes(image: Image.Image):
+    """Use OCR to extract words and their normalized coordinates."""
+    width, height = image.size
+    data = pytesseract.image_to_data(image, output_type=Output.DICT)
+    words, boxes = [], []
+    for i in range(len(data["text"])):
+        text = data["text"][i].strip()
+        if not text:
+            continue
+        x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+        box = [
+            int(1000 * x / width),
+            int(1000 * y / height),
+            int(1000 * (x + w) / width),
+            int(1000 * (y + h) / height),
+        ]
+        words.append(text)
+        boxes.append(box)
+    return words, boxes
+
+
+def infer_sections_layoutlm(image_path):
+    """Detect sections from an image using LayoutLMv3 and OCR."""
+    if not LAYOUTLM_AVAILABLE or layoutlm_model is None:
+        return {}
+    
+    try:
+        image = Image.open(image_path).convert("RGB")
+        words, boxes = extract_words_and_boxes(image)
+        
+        print(f"🔍 LayoutLMv3: {len(words)} words detected by OCR")
+        if not words:
+            print("⚠️ No words detected in image")
+            return {}
+
+        encoding = layoutlm_processor(
+            images=image,
+            text=words,
+            boxes=boxes,
+            return_tensors="pt",
+            truncation=True,
+            padding="max_length",
+            max_length=512
+        ).to(DEVICE)
+
+        with torch.no_grad():
+            outputs = layoutlm_model(**encoding)
+            predictions = outputs.logits.argmax(-1).squeeze().tolist()
+            predicted_labels = [id2label[p] for p in predictions]
+
+        print(f"✅ LayoutLMv3: Generated {len(predicted_labels)} predictions")
+
+        sections = {}
+        for word, label in zip(words, predicted_labels):
+            if label != "O":
+                label_clean = label.replace("B-", "").replace("I-", "")
+                sections.setdefault(label_clean, []).append(word)
+
+        # Merge words into full sections
+        sections = {k: " ".join(v) for k, v in sections.items()}
+        print(f"✅ LayoutLMv3: Detected sections: {list(sections.keys())}")
+        return sections
+    except Exception as e:
+        print(f"❌ LayoutLMv3 error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+
+def convert_pdf_to_images(pdf_path):
+    """Convert a PDF into PNG images (one per page)."""
+    try:
+        pages = convert_from_path(pdf_path, dpi=200, poppler_path=POPPLER_PATH if os.path.exists(POPPLER_PATH) else None)
+        paths = []
+        for i, p in enumerate(pages):
+            tmp = f"temp_page_{i+1}.png"
+            p.save(tmp, "PNG")
+            paths.append(tmp)
+        return paths
+    except Exception as e:
+        print(f"❌ PDF to image conversion failed: {e}")
+        return []
+
+
+def extract_sections_from_resume(resume_path: str, cv_text: str = None) -> dict:
+    """
+    Extract structured sections from resume using LayoutLMv3 (preferred) or regex fallback
+    """
+    print("📚 Extracting structured sections from resume...")
+    
+    # Try LayoutLMv3 first if available
+    if LAYOUTLM_AVAILABLE and layoutlm_model is not None:
+        try:
+            print("🔍 Using LayoutLMv3 transformer model...")
+            image_paths = convert_pdf_to_images(resume_path)
+            
+            if not image_paths:
+                print("⚠️ Could not convert PDF to images, falling back to regex")
+            else:
+                all_sections = {}
+                for img_path in image_paths:
+                    try:
+                        page_sections = infer_sections_layoutlm(img_path)
+                        # Merge sections from all pages
+                        for section_name, content in page_sections.items():
+                            if section_name in all_sections:
+                                all_sections[section_name] += " " + content
+                            else:
+                                all_sections[section_name] = content
+                    except Exception as e:
+                        print(f"⚠️ Error processing page: {e}")
+                    finally:
+                        # Cleanup temp image
+                        if os.path.exists(img_path) and img_path.startswith("temp_page_"):
+                            try:
+                                os.remove(img_path)
+                            except:
+                                pass
+                
+                if all_sections:
+                    print(f"✅ LayoutLMv3 extracted {len(all_sections)} sections")
+                    return {"sections": all_sections, "method": "LayoutLMv3"}
+                else:
+                    print("⚠️ LayoutLMv3 found no sections, falling back to regex")
+        except Exception as e:
+            print(f"❌ LayoutLMv3 extraction failed: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Fallback to regex-based extraction
+    print("🔍 Using regex-based fallback extraction...")
+    try:
+        # If text not provided, extract it
+        if not cv_text:
+            print("📄 Extracting text from PDF...")
+            import PyPDF2
+            cv_text = ""
+            with open(resume_path, 'rb') as f:
+                pdf_reader = PyPDF2.PdfReader(f)
+                for page in pdf_reader.pages:
+                    cv_text += page.extract_text()
+        
+        if not cv_text:
+            print("❌ No text extracted")
+            return {"error": "Could not extract text", "sections": {}}
+        
+        print(f"✅ Text length: {len(cv_text)} characters")
+        import re
+        
+        sections = {}
+        
+        # Define section patterns (case-insensitive)
+        section_patterns = {
+            'CONTACT': [
+                r'(?:email|e-mail|mail)[\s:]*([^\n]+@[^\n]+)',
+                r'(?:phone|tel|mobile|cell)[\s:]*([+\d\s\-()]+)',
+                r'(?:address|location)[\s:]*([^\n]+)',
+                r'(?:linkedin|github|portfolio)[\s:]*([^\n]+)'
+            ],
+            'SUMMARY': [
+                r'(?:summary|profile|objective|about me)[\s:]*\n((?:.+\n?)+?)(?=\n(?:[A-Z\s]{3,}|$))',
+            ],
+            'EXPERIENCE': [
+                r'(?:experience|work history|employment|professional experience)[\s:]*\n((?:.+\n?)+?)(?=\n(?:education|skills|projects|certifications|[A-Z\s]{3,}|$))',
+            ],
+            'EDUCATION': [
+                r'(?:education|academic background|qualifications)[\s:]*\n((?:.+\n?)+?)(?=\n(?:experience|skills|projects|certifications|[A-Z\s]{3,}|$))',
+            ],
+            'SKILLS': [
+                r'(?:skills|technical skills|competencies|expertise)[\s:]*\n((?:.+\n?)+?)(?=\n(?:experience|education|projects|certifications|[A-Z\s]{3,}|$))',
+            ],
+            'PROJECTS': [
+                r'(?:projects|portfolio|key projects)[\s:]*\n((?:.+\n?)+?)(?=\n(?:experience|education|skills|certifications|[A-Z\s]{3,}|$))',
+            ],
+            'CERTIFICATIONS': [
+                r'(?:certifications?|licenses?|credentials?)[\s:]*\n((?:.+\n?)+?)(?=\n(?:experience|education|skills|projects|[A-Z\s]{3,}|$))',
+            ],
+            'LANGUAGES': [
+                r'(?:languages?)[\s:]*\n((?:.+\n?)+?)(?=\n(?:experience|education|skills|projects|certifications|[A-Z\s]{3,}|$))',
+            ]
+        }
+        
+        # Extract contact info
+        contact_parts = []
+        for pattern in section_patterns['CONTACT']:
+            matches = re.finditer(pattern, cv_text, re.IGNORECASE)
+            for match in matches:
+                contact_parts.append(match.group(1).strip())
+        if contact_parts:
+            sections['CONTACT'] = ' | '.join(contact_parts[:5])
+        
+        # Extract other sections
+        for section_name, patterns in section_patterns.items():
+            if section_name == 'CONTACT':
+                continue
+            
+            for pattern in patterns:
+                match = re.search(pattern, cv_text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    content = match.group(1).strip()
+                    # Clean up the content
+                    content = re.sub(r'\n\s*\n', '\n\n', content)  # Remove excessive newlines
+                    content = content[:2000]  # Limit length
+                    sections[section_name] = content
+                    break
+        
+        # Extract name from top of document (simple heuristic)
+        lines = cv_text.split('\n')
+        potential_name = None
+        for line in lines[:5]:
+            line = line.strip()
+            if len(line) > 5 and len(line) < 50 and not '@' in line and not any(keyword in line.lower() for keyword in ['resume', 'cv', 'curriculum']):
+                # Likely the name
+                potential_name = line
+                break
+        
+        if potential_name:
+            sections['HEADER'] = potential_name
+        
+        print(f"✅ Extracted {len(sections)} sections using regex: {list(sections.keys())}")
+        return {"success": True, "sections": sections}
+        
+    except Exception as e:
+        print(f"❌ Section extraction error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "sections": {}}
+
+app = FastAPI(
+    title="ATS XAI Service",
+    description="Explainable AI-powered ATS analysis with SHAP, LIME, and Missing Skills",
+    version="1.0.0"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize XAI explainer
+# ============================================================================
+# Configuration
+# ============================================================================
+MODEL_PATH = Path(__file__).parent / "deep_Learning_Project" / "JobPrediction_Model"
+LAYOUTLM_MODEL_DIR = Path(__file__).parent / "pi5eme1 - Copie (2)" / "pi5eme1 - Copie (2)" / "outputs" / "models" / "layoutlmv3_finetuned"
+POPPLER_PATH = r"C:\Release-25.07.0-0\poppler-25.07.0\Library\bin"
+
+# Configure Tesseract
+try:
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+except:
+    pass
+
+# Initialize LayoutLMv3 model if available
+layoutlm_processor = None
+layoutlm_model = None
+if LAYOUTLM_AVAILABLE and LAYOUTLM_MODEL_DIR.exists():
+    try:
+        DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        layoutlm_processor = LayoutLMv3Processor.from_pretrained(str(LAYOUTLM_MODEL_DIR))
+        layoutlm_model = LayoutLMv3ForTokenClassification.from_pretrained(str(LAYOUTLM_MODEL_DIR)).to(DEVICE)
+        print(f"✅ LayoutLMv3 model loaded on {DEVICE}")
+    except Exception as e:
+        print(f"⚠️ Could not load LayoutLMv3 model: {e}")
+        LAYOUTLM_AVAILABLE = False
+
+# Label mapping for LayoutLMv3
+label_list = [
+    "O",
+    "B-HEADER", "I-HEADER",
+    "B-CONTACT", "I-CONTACT",
+    "B-SUMMARY", "I-SUMMARY",
+    "B-EDUCATION", "I-EDUCATION",
+    "B-EXPERIENCE", "I-EXPERIENCE",
+    "B-SKILLS", "I-SKILLS",
+    "B-PROJECTS", "I-PROJECTS",
+    "B-CERTIFICATIONS", "I-CERTIFICATIONS",
+    "B-LANGUAGES", "I-LANGUAGES",
+    "B-PUBLICATIONS", "I-PUBLICATIONS",
+    "B-REFERENCES", "I-REFERENCES",
+    "B-OTHER", "I-OTHER"
+]
+id2label = {i: l for i, l in enumerate(label_list)}
+xai_explainer = XAIExplainer(model_path=str(MODEL_PATH))
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "service": "ATS XAI API",
+        "xgboost_loaded": xai_explainer.xgb_model is not None,
+        "job_roles": len(xai_explainer.job_roles)
+    }
+
+
+@app.post("/analyze")
+async def analyze_application(
+    resume: UploadFile = File(...),
+    job_description: str = Form(...),
+    target_role: Optional[str] = Form(None)
+):
+    """
+    Analyze resume against job description with full XAI
+    
+    Returns:
+    - ATS score and matching
+    - Job prediction with confidence
+    - SHAP explanation
+    - LIME explanation
+    - Missing skills analysis
+    - CV sections (if extraction works)
+    """
+    
+    # Validate file type
+    if not resume.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        content = await resume.read()
+        tmp_file.write(content)
+        resume_path = tmp_file.name
+    
+    try:
+        # STAGE 1: Extract CV text (simplified - you can enhance with LayoutLMv3)
+        try:
+            from pdf_extractor import extract_text_from_pdf
+            cv_text = extract_text_from_pdf(resume_path)
+        except ImportError:
+            # Fallback: Use PyPDF2 directly
+            import PyPDF2
+            cv_text = ""
+            with open(resume_path, 'rb') as f:
+                pdf_reader = PyPDF2.PdfReader(f)
+                for page in pdf_reader.pages:
+                    cv_text += page.extract_text()
+        
+        if not cv_text or len(cv_text.strip()) < 50:
+            raise HTTPException(status_code=400, detail="Could not extract text from resume")
+        
+        # STAGE 1.5: Extract structured sections using regex patterns
+        print("📚 Extracting structured sections from resume...")
+        cv_sections_result = extract_sections_from_resume(resume_path, cv_text)
+        cv_sections = cv_sections_result.get("sections", {})
+        if cv_sections:
+            print(f"✅ Extracted sections: {list(cv_sections.keys())}")
+        else:
+            print("⚠️ No sections extracted, using basic text")
+            cv_sections = {}
+        
+        # STAGE 2: Calculate ATS score
+        try:
+            print(f"📊 Calculating similarity score...")
+            similarity_scores = calculate_similarity_score(cv_text, job_description)
+            print(f"✅ ATS Score: {similarity_scores['overall_percentage']}%")
+        except Exception as e:
+            print(f"❌ ATS scoring error: {e}")
+            import traceback
+            traceback.print_exc()
+            similarity_scores = {
+                "overall_percentage": 0.0,
+                "match_level": "Error",
+                "detailed_scores": {},
+                "matched_skills": [],
+                "missing_skills": []
+            }
+        
+        # STAGE 3: Job prediction with XAI
+        print("🎯 Predicting job roles...")
+        prediction = xai_explainer.predict_with_xgboost(cv_text, top_n=5)
+        print(f"✅ Predicted: {prediction['predicted_role']}")
+        
+        # STAGE 4: SHAP explanation
+        print("🔍 Generating SHAP explanation...")
+        shap_explanation = xai_explainer.explain_with_shap(cv_text)
+        print("✅ SHAP completed")
+        
+        # STAGE 5: LIME explanation (reduced samples for speed)
+        print("🔍 Generating LIME explanation...")
+        lime_explanation = xai_explainer.explain_with_lime(cv_text, num_features=10, num_samples=1000)
+        print("✅ LIME completed")
+        
+        # STAGE 6: Missing skills analysis
+        # Use target_role if provided, otherwise use predicted role
+        print("🔍 Analyzing missing skills...")
+        analysis_role = target_role if target_role else prediction['predicted_role']
+        missing_skills_analysis = xai_explainer.analyze_missing_skills(
+            cv_text=cv_text,
+            target_role=analysis_role,
+            top_n=10
+        )
+        print("✅ Missing skills analysis completed")
+        
+        # Format response
+        response = {
+            "success": True,
+            "cv_text": cv_text,  # Full text for parsing
+            "cv_text_preview": cv_text[:500] + "..." if len(cv_text) > 500 else cv_text,
+            "cv_sections": cv_sections,  # Structured sections from LayoutLMv3
+            "similarity_scores": {
+                "overall_percentage": float(similarity_scores.get("overall_percentage", 0.0)),
+                "match_level": similarity_scores.get("match_level", "Unknown"),
+                "detailed_scores": similarity_scores.get("detailed_scores", {}),
+                "matched_skills": similarity_scores.get("matched_skills", []),
+                "missing_skills": similarity_scores.get("missing_skills", [])
+            },
+            "job_prediction": {
+                "predicted_role": prediction['predicted_role'],
+                "confidence": float(prediction['confidence']),
+                "top_predictions": prediction['top_predictions']
+            },
+            "xai": {
+                "shap": {
+                    "top_features": [
+                        {
+                            "feature": str(f['feature']),
+                            "value": float(f['value']) if isinstance(f['value'], (int, float)) else 0.0,
+                            "shapValue": float(f['shap_value']) if isinstance(f['shap_value'], (int, float)) else 0.0,
+                            "impact": str(f['impact'])
+                        }
+                        for f in shap_explanation['top_features'][:15]
+                    ],
+                    "summary": shap_explanation['summary']
+                },
+                "lime": {
+                    "features": [
+                        {
+                            "feature": str(f['feature']),
+                            "weight": float(f['weight']) if isinstance(f['weight'], (int, float)) else 0.0,
+                            "impact": str(f['impact'])
+                        }
+                        for f in lime_explanation['features'][:15]
+                    ],
+                    "summary": lime_explanation['summary']
+                },
+                "missing_skills": {
+                    "target_role": missing_skills_analysis.get('target_role', analysis_role),
+                    "current_match_probability": float(missing_skills_analysis.get('current_match_probability', 0.0)),
+                    "top_missing_skills": [
+                        {
+                            "skill": str(s['skill']),
+                            "impactIfAdded": float(s['impact_if_added']) if isinstance(s['impact_if_added'], (int, float)) else 0.0,
+                            "impactPercentage": float(s['impact_percentage']) if isinstance(s['impact_percentage'], (int, float)) else 0.0,
+                            "priority": str(s['priority'])
+                        }
+                        for s in missing_skills_analysis.get('gap_analysis', {}).get('top_missing_skills', [])
+                    ],
+                    "total_potential_improvement": float(missing_skills_analysis.get('gap_analysis', {}).get('total_potential_improvement', 0.0)),
+                    "recommendation": missing_skills_analysis.get('recommendation', '')
+                }
+            }
+        }
+        
+        print(f"✅ Analysis complete. ATS Score: {response['similarity_scores']['overall_percentage']}%")
+        print(f"✅ Predicted Role: {response['job_prediction']['predicted_role']}")
+        
+        return JSONResponse(content=response)
+    
+    except Exception as e:
+        import traceback
+        print(f"Error in analyze_application: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+    
+    finally:
+        # Cleanup
+        try:
+            os.unlink(resume_path)
+        except:
+            pass
+
+
+@app.get("/roles")
+async def get_available_roles():
+    """Get list of all available job roles"""
+    return {
+        "roles": xai_explainer.job_roles,
+        "count": len(xai_explainer.job_roles)
+    }
+
+
+if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    
+    print("="*80)
+    print("🚀 Starting ATS XAI API Service")
+    print("="*80)
+    print(f"Model Path: {MODEL_PATH}")
+    print(f"XGBoost Loaded: {xai_explainer.xgb_model is not None}")
+    print(f"Job Roles: {len(xai_explainer.job_roles)}")
+    print("="*80)
+    
+    try:
+        uvicorn.run(
+            app,  # Pass app instance directly instead of string
+            host="127.0.0.1",  # Changed from 0.0.0.0 to localhost only
+            port=8000,
+            reload=False,  # Disable reload for stability
+            log_level="info"
+        )
+    except KeyboardInterrupt:
+        print("\n👋 Shutting down gracefully...")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()

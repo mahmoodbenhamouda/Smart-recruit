@@ -1,0 +1,17 @@
+{
+  "filename": "Rostom-Atri-Resume.pdf",
+  "sections": [
+    {
+      "SUMMARY": "Al",
+      "EDUCATION": "¢ engineering Data hybrid using HTML,",
+      "EXPERIENCE": "profitability using",
+      "SKILLS": "Brain",
+      "CONTACT": "05/2024",
+      "PROJECTS": "product"
+    }
+  ],
+  "skills_ner": [
+    "emotion",
+    "LangChain"
+  ]
+}

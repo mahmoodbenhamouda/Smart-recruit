@@ -1,0 +1,136 @@
+{
+  "filename": "cv mahmoud.pdf",
+  "ocr_text": "\n--- Page 1 ---\nMAHMOUD BEN HAMMOUDA\nEtudiant En Cycle d’Ingénieur Informatique / Spécialisation Data Science\n\nEmail : benhammoudamahmoud00@gmail.com\n\nGithub : github.com/mahmoodbenhamouda\n\nTéléphone : +216 94 480 912\n\nAdresse : 38 Rue Boukhara, 2001 Ariana, Tunisie\n\nFORMATIONS\n\nEcole supérieure d’ingénierie et de Technologie | Tunisie\n\nSpécialité : Informatique/ Data Science 2021 - Présent\n\nLycée Menzah 6 | Tunisie (Baccalauréat en Science Informatiques) - 2021\n\nCOMPETENCES TECHNIQUES\n\nDeep Learning / Machine Learning: ANN, CNN, GNN, Autoencoders,\nGANs, Transformers Random Forest, SVM, XGBoost, k-NN, Clustering\nData Science & Traitement: Feature Engineering, Data Cleaning,\nData Visualization NLP (BERT, HuggingFace), Systeme de\nrecommandation\n\nLangage : Java, JavaScript, PHP, HTML, CSS, XML, C#, C++\n\nBases de Données : SQL (MySQL, Oracle), NoSQL (MongoDB)\nDeploiement: API (FastAPI, Flask), Streamlit\n\nOutils & Frameworks:\n\nLibraries Python (TensorFlow, Pytorch, Scikit-learn, Pandas, NumPy,\nMatplotlib, Seaborn), Big Data (Hadoop, Cloudera), MLOps (MLflow,\nDocker, Git)\n\na\n\nCOMPETENCES LINGUISTIQUE\n\noe\n\n“* Arabe - Maternelle %\n“Francais - Courant og\n\nEXPERIENCES PROFESSIONNELLES\n\nAnglais - Courant\nAllemand - Débutant\n\nConsultant en Data Science Juin— Septembre 2025\nInsight Plus - Solution de gestion client (EXSYS) pour bureaux de\nchange avec classification et vue 360° des clients.\n\n| Tunisie\n\ne Conception et développement du backend et front-end\ne  Génération de data pour la création d’une BD client.\n\ne Segmentation des clients et création d’une vue 360°\n\ne Création d’un Dashboard avec Power Bl\n\nTechnologies: Symfony, Angular, Python, Power BI, XAMPP\n\nConsultant en Data Science & IA | Tunisie Janvier - Mai 2025\n\nESPRIT - Développement d’une IA (PRIME GUIDE) multimodale pour le\nmarketing digital des PME.\n\ne  Récupération et préparation de données.\n\ne Développement du pipeline IA multimodal en intégrant une\ngénération de texte, image, audio et GIF personnalisé.\n\ne Analyse de sentiments, prédiction de tendances et systeme de\nrecommandations.\n\n@ Création d’une API REST avec génération de contenu\n\nTechnologies: Python, Streamlit, Git, Kaggle, hugging face\n\nConsultant en Data Science & IA / Tunisie Janvier - Mai 2025\nESPRIT - Développement d’une IA multimodale (PRIME GUID) pour le\nmarketing digital des PME.\n\ne  Récupération et préparation de données.\n\ne Développement du pipeline [A multimodal en intégrant une\ngénération de texte, image, audio et GIF personnalisé.\n\ne Analyse de sentiments, prédiction de tendances et systeme de\nrecommandations.\n\ne@ Création d’une API REST avec génération de contenu\n\nTechnologies: Python, Streamlit, Git, Kaggle, hugging face\n\nDéveloppeur WEB | Héraklion, Gréce _Juillet - Septembre 2024\nVERDIT - Solution en ligne (MyLibary) fiable et interactive avec\nfonctionnalités avancées pour bibliotheque numérique.\n\ne Conception du frontend pour offrir une interface ergonomique.\ne —_Intégration des fonctionnalités avancés.\ne = Intégration d’API et communication avec le backend via ORM.\n\nTechnologies : Laravel, Table Plus, Git, Laragon\n\nProjet Deep Learning pour détection de cancer | Tunisie 2025\nESPRIT - Développement d’une plateforme avec des interfaces\nconviviales de gestion de la relation client avec les bureaux de change\ntout en les classifiant et en offrant une vue 360°.\n\ne Collecte des données & Nettoyage et prétraitement\ne Modélisation et optimisation des hyperparamétres\ne Calcul de métriques de performances et déploiement\n\nTechnologies : Python, Streamlit, Git.\n\nFinalistes en Hackathon IA | Tunisie 2024\nESPRIT - Développement d’une IA pour gestion durable des déchets et\nsuivi en temps réel.\n\ne  Collecte et traitement des données\n\ne Exploration et analyse des données\n\ne Modélisation et déploiement\n\nTechnologies: Python, Flask, Git.\n\nEXPERIENCES BENEVOLATS\n\n= AIESEC SERBIA | Subotica (3 mois) - 2022\n= AIESEC TUNISIE | Tunisie (2 ans) - 2021\n\nCENTRES D’INTERETS\n\n%\n\n“ Voyage “= Gymnastique\n",
+  "layout": {
+    "error": "Fichier PDF détecté — convertissez en image avant d'utiliser LayoutLMv3 dans cette fonction."
+  },
+  "entities": {
+    "email": "benhammoudamahmoud00@gmail.com",
+    "phone": "+216 94 480 912",
+    "spacy_entities": {
+      "CARDINAL": [
+        "912",
+        "38",
+        "360",
+        "3",
+        "2"
+      ],
+      "PERSON": [
+        "Rue Boukhara",
+        "Lycée Menzah",
+        "Java",
+        "Oracle",
+        "Matplotlib",
+        "Cloudera",
+        "Docker",
+        "Git",
+        "Power Bl",
+        "Tunisie Janvier - Mai 2025",
+        "Streamlit",
+        "Git",
+        "Kaggle",
+        "Tunisie Janvier - Mai 2025",
+        "Streamlit",
+        "Git",
+        "Kaggle",
+        "d’API",
+        "Git",
+        "Streamlit",
+        "Git",
+        "Collecte",
+        "Git",
+        "Subotica"
+      ],
+      "DATE": [
+        "2001",
+        "2021",
+        "Septembre 2025",
+        "2025",
+        "2024",
+        "2022",
+        "2021"
+      ],
+      "GPE": [
+        "Ariana",
+        "d’ingénierie",
+        "Flask",
+        "NumPy",
+        "XAMPP",
+        "IA",
+        "IA",
+        "Développeur",
+        "Collecte",
+        "Hackathon IA",
+        "IA",
+        "Flask"
+      ],
+      "ORG": [
+        "Tunisie\n\nFORMATIONS\n\nEcole",
+        "de Technologie",
+        "Informatique/ Data Science 2021 - Présent",
+        "ANN",
+        "CNN",
+        "GNN",
+        "Autoencoders",
+        "Transformers Random Forest",
+        "SVM",
+        "XGBoost",
+        "k-NN",
+        "Data Cleaning",
+        "Data Visualization NLP",
+        "BERT",
+        "HuggingFace",
+        "JavaScript",
+        "PHP",
+        "HTML",
+        "CSS",
+        "XML",
+        "C++\n\nBases de Données",
+        "Streamlit\n\nOutils & Frameworks:\n\nLibraries Python",
+        "TensorFlow",
+        "Pytorch",
+        "Pandas",
+        "Big Data",
+        "MLOps",
+        "Insight Plus - Solution de gestion",
+        "BD",
+        "Création d’un Dashboard",
+        "Data Science & IA",
+        "PME",
+        "Récupération",
+        "Développement",
+        "GIF",
+        "Analyse de sentiments",
+        "Data Science & IA /",
+        "PME",
+        "Récupération",
+        "Développement",
+        "GIF",
+        "Analyse de sentiments",
+        "Laragon",
+        "bureaux de change",
+        "Calcul de métriques de",
+        "AIESEC",
+        "AIESEC"
+      ],
+      "LOC": [
+        "Seaborn"
+      ],
+      "WORK_OF_ART": [
+        "Francais - Courant"
+      ],
+      "PRODUCT": [
+        "d’une",
+        "Voyage"
+      ],
+      "PERCENT": [
+        "D’INTERETS\n\n%"
+      ],
+      "NORP": [
+        "Gymnastique"
+      ]
+    },
+    "skills": [],
+    "name": "Rue Boukhara"
+  }
+}

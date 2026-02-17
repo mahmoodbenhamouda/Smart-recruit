@@ -1,0 +1,15 @@
+{
+  "filename": "Resume.pdf",
+  "sections": [
+    {
+      "EDUCATION": "! Data Science I I",
+      "SKILLS": "frontend Python,",
+      "CONTACT": "advanced to of",
+      "SUMMARY": "features deliver"
+    }
+  ],
+  "skills_ner": [
+    "REST",
+    "IT"
+  ]
+}
